@@ -1,0 +1,891 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DVantage Agentic Workbench</title>
+    <link rel="stylesheet" href="css/main.css">
+    <!-- Lucide Icons for that Gemini look -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/sql/sql.min.js"></script>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Replace Handsontable with AG-Grid -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+</head>
+<body>
+
+    <div id="auth-overlay" class="auth-screen">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1 class="gemini-gradient">DVantage</h1>
+                <p id="auth-subtitle">Sign in to access your local data vault.</p>
+            </div>
+
+            <form id="auth-form">
+                <div id="username-wrapper" class="hidden">
+                    <input type="text" id="auth-username" placeholder="Username" autocomplete="username">
+                </div>
+                <input type="email" id="auth-email" placeholder="Email" required>
+                <input type="password" id="auth-password" placeholder="Password" required>
+                <button type="submit" id="btn-auth-submit" class="primary-btn">Sign In</button>
+            </form>
+
+            <div class="auth-footer">
+                <p id="toggle-auth-mode">New here? <span class="link">Create an account</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Sidebar -->
+    <aside id="app-sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <button id="sidebar-toggle" class="icon-btn">
+                <i data-lucide="panel-left-close"></i>
+            </button>
+            <span class="sidebar-title">Menu</span>
+        </div>
+
+        <div class="sidebar-features">
+            <!-- Add id="sidebar-spreadsheet-btn" -->
+            <button id="sidebar-spreadsheet-btn" class="menu-item">
+                <i data-lucide="table-2"></i> <span class="nav-text">Spreadsheet Mode</span>
+            </button>
+            
+            <button id="sidebar-personas-btn" class="menu-item persona-highlight">
+                <i data-lucide="user-circle"></i> <span class="nav-text">Personas</span>
+            </button>
+
+            <button id="btn-create-kratabook" class="menu-item kratabook-btn">
+                <i data-lucide="book-plus"></i> <span class="nav-text">Create KrataBook</span>
+            </button>
+
+            <div class="sidebar-section-label nav-text">KrataBooks</div>
+            <div id="kratabook-list" class="sidebar-list">
+                <!-- Saved reports will appear here -->
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="menu-wrapper">
+                <button id="btn-settings-sidebar" class="menu-item">
+                    <i data-lucide="settings"></i> 
+                    <span class="nav-text">Settings</span>
+                </button>
+                
+                <!-- Settings Dropdown -->
+                <div id="settings-dropdown" class="dropdown-menu settings-menu hidden">
+                    <!-- Privacy Tool Shortcut -->
+                    <button class="menu-item" onclick="openModal('privacy-modal')">
+                        <i data-lucide="shield"></i> 
+                        <span>Privacy</span>
+                    </button>
+
+                    <!-- Feedback (Placeholder) -->
+                    <button class="menu-item">
+                        <i data-lucide="message-square"></i> 
+                        <span>Send feedback</span>
+                    </button>
+
+                    <!-- Theme Section with Toggle -->
+                    <div class="menu-item-row">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="sun-moon"></i>
+                            <span>Theme</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="dark-mode-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+
+                    <!-- Agentic Background (Vault Status) -->
+                    <button class="menu-item" onclick="window.dispatchEvent(new CustomEvent('open-agentic-bg'))">
+                        <i data-lucide="sparkles"></i> 
+                        <span>Agentic Background</span>
+                    </button>
+
+
+                    <div class="menu-divider"></div>
+
+                    <!-- Sign Out -->
+                    <button class="menu-item text-red-500" id="btn-logout-actual">
+                        <i data-lucide="log-out"></i> 
+                        <span>Sign out</span>
+                    </button>
+
+                    <!-- Status Footer (The "Location" lookalike) -->
+                    <div class="menu-status-footer">
+                        <div class="status-dot"></div>
+                        <div class="status-info">
+                            <strong>Local Vault Active</strong>
+                            <span>Secure OPFS Storage</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main id="chat-container">
+        <!-- NEW TOP NAVIGATION -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <span class="brand-logo">Krata AI</span>
+            </div>
+            <div class="nav-center">
+                <!-- This will dynamically change based on the active Persona -->
+                <span id="active-persona-display">Data Analyst</span>
+            </div>
+            <div class="nav-right">
+                <button class="icon-btn" id="btn-top-headsup" title="Data Explorer">
+                    <i data-lucide="share-2"></i>
+                </button>
+                <div class="menu-wrapper">
+                    <button class="icon-btn" id="btn-top-options" title="Options">
+                        <i data-lucide="more-vertical"></i>
+                    </button>
+                    
+                    <!-- The Dropdown -->
+                    <div id="menu-top-options" class="dropdown-menu top-menu hidden">
+                        <button class="menu-item" id="btn-top-persona">
+                            <i data-lucide="user-circle"></i> <span>Persona</span>
+                        </button>
+                        <button class="menu-item" id="btn-top-kratabook">
+                            <i data-lucide="book-plus"></i> <span>KrataBook</span>
+                        </button>
+                        <div class="menu-divider"></div>
+                        <button class="menu-item text-red-600" id="btn-top-clear">
+                            <i data-lucide="trash-2"></i> <span>Clear Chat</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- User Profile Menu -->
+                <div class="menu-wrapper">
+                    <div id="user-avatar-circle" class="user-avatar cursor-pointer shadow-sm hover:ring-2 hover:ring-blue-200 transition-all">U</div>
+                    
+                    <!-- The Profile Dropdown Card -->
+                    <div id="menu-user-profile" class="dropdown-menu top-menu hidden profile-card">
+                        
+                        <!-- Top: Email & Close -->
+                        <div class="profile-header">
+                            <span id="profile-email-display" class="text-sm font-medium text-gray-800">user@example.com</span>
+                            <button onclick="document.getElementById('menu-user-profile').classList.add('hidden')" class="icon-btn p-1">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Middle: Avatar & Greeting -->
+                        <div class="profile-body">
+                            <div class="profile-avatar-wrapper">
+                                <div id="profile-large-avatar" class="user-avatar large">U</div>
+                            </div>
+                            <h3 id="profile-greeting" class="text-2xl font-normal text-gray-900 mt-3 mb-6">Hi, User!</h3>
+                        </div>
+
+                        <!-- Bottom: Sign Out Action -->
+                        <div class="profile-footer">
+                            <button id="btn-profile-logout" class="profile-action-btn">
+                                <i data-lucide="log-out" class="w-4 h-4 mr-2"></i> Sign out
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </header>
+
+        <div id="chat-history-container">
+            <div id="intro-screen">
+                <h1>Hi User,</h1>
+                <h2 class="fade-text">Where should we start?</h2>
+                <div id="suggested-chips">
+                    <button class="chip" onclick="document.getElementById('file-picker').click()">Upload CSV</button>
+                    <button class="chip">PII Scan</button>
+                </div>
+            </div>
+            <div id="proactive-insights-container" class="hidden">
+                <div class="insight-label">Proactive Suggestions</div>
+                <div id="proactive-pills">
+                    <!-- AI Pills will be injected here -->
+                </div>
+            </div>
+            <div id="messages"></div>
+        </div>
+
+        <!-- The Bottom Command Center -->
+        <div id="input-wrapper">
+            <div id="input-pill">
+                <textarea id="user-prompt" placeholder="Ask Krata AI..." rows="1"></textarea>
+                
+                <div id="pill-actions">
+                    <div class="left-group">
+                        <!-- DATABASE MENU -->
+                        <div class="menu-wrapper">
+                            <button class="icon-btn" id="btn-database" title="Data Management">
+                                <i data-lucide="database"></i>
+                            </button>
+                            <div id="menu-database" class="dropdown-menu hidden">
+                                <div class="dropdown-header">Data Management</div>
+                                <button class="menu-item" onclick="document.getElementById('file-picker').click()">
+                                    <i data-lucide="upload-cloud"></i> Upload Dataset
+                                </button>
+                                <button class="menu-item" id="btn-import-url-menu">
+                                    <i data-lucide="link"></i> Import Web / Sheets URL
+                                </button>
+                                <div class="menu-divider"></div>
+                                <div class="dropdown-header">Export Active Table</div>
+                                <button class="menu-item" id="btn-export-csv-menu">
+                                    <i data-lucide="file-text" class="text-blue-600"></i> Download CSV
+                                </button>
+                                <button class="menu-item" id="btn-export-excel-menu">
+                                    <i data-lucide="file-spreadsheet" class="text-green-600"></i> Download Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- TOOLS MENU -->
+                        <div class="menu-wrapper">
+                            <button class="icon-btn" id="btn-tools" title="Advanced Tools">
+                                <i data-lucide="wrench"></i>
+                            </button>
+                            <div id="menu-tools" class="dropdown-menu hidden">
+                                <div class="dropdown-header">Analysis Lab</div>
+                                <button class="menu-item" id="menu-viz"><i data-lucide="bar-chart-3"></i> Visualization</button>
+                                <button class="menu-item" id="menu-sql"><i data-lucide="terminal"></i> SQL Editor</button>
+                                <button class="menu-item" id="menu-pivot"><i data-lucide="pivot-bottom-left"></i> Pivot Table</button>
+                                <button class="menu-item" id="menu-narrator"><i data-lucide="book-open"></i> Narrator</button>
+                                <div class="menu-divider"></div>
+                                <button class="menu-item" id="menu-quality"><i data-lucide="microscope"></i> Quality Labs</button>
+                                <button class="menu-item" id="menu-privacy"><i data-lucide="shield-check"></i> Privacy Labs</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="right-group">
+                        <div class="menu-wrapper">
+                            <!-- The Selector Button -->
+                            <button id="btn-data-selector" class="data-selector-pill">
+                                <span id="active-data-label">Select Data</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 opacity-50"></i>
+                            </button>
+                            
+                            <!-- The Dropdown Menu -->
+                            <div id="data-dropdown" class="dropdown-menu data-menu hidden">
+                                <div class="dropdown-header">Available Datasets</div>
+                                <div id="data-list-container">
+                                    <!-- Table list injected here -->
+                                    <div class="p-4 text-xs text-gray-400 italic">No data uploaded yet</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="icon-btn" id="btn-preview" title="Show Preview">
+                            <i data-lucide="eye"></i>
+                        </button>
+                        <button class="icon-btn hidden" id="btn-send">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <p class="disclaimer">Krata AI is an AI and can make mistakes. Verify important data.</p>
+        </div>
+
+        <!-- Hidden File Picker -->
+        <input type="file" id="file-picker" accept=".csv,.parquet,.png,.jpg,.jpeg,.pdf" style="display:none">
+
+        <!-- Bottom Sheet Data Preview -->
+        <div id="preview-overlay" class="overlay-hidden">
+            <div id="preview-content">
+                <div id="preview-header">
+                    <div class="drag-handle"></div>
+                    <div class="header-main">
+                        <h3>Data Preview</h3>
+                        <button id="close-preview"><i data-lucide="x"></i></button>
+                    </div>
+                </div>
+                <div id="table-container">
+                    <table id="data-table">
+                        <thead id="table-head"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="viz-modal" class="overlay-hidden">
+            <div class="modal-card viz-large">
+                <div class="modal-header">
+                    <h3><i data-lucide="bar-chart-3"></i> Visualization Lab</h3>
+                    <button id="close-viz"><i data-lucide="x"></i></button>
+                </div>
+                
+                <!-- View 1: Configuration Form -->
+                <div id="viz-config-view">
+                    <div class="modal-body">
+                        <label>Chart Type</label>
+                        <div class="chart-type-grid">
+                            <button class="type-btn active" data-type="bar"><i data-lucide="bar-chart"></i><span>Bar</span></button>
+                            <button class="type-btn" data-type="line"><i data-lucide="trending-up"></i><span>Line</span></button>
+                            <button class="type-btn" data-type="pie"><i data-lucide="pie-chart"></i><span>Pie</span></button>
+                            <button class="type-btn" data-type="scatter"><i data-lucide="dot-chart"></i><span>Scatter</span></button>
+                        </div>
+
+                        <div class="form-group">
+                            <label>X-Axis</label>
+                            <select id="viz-x-axis" class="custom-select"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Y-Axis</label>
+                            <div class="flex-row">
+                                <select id="viz-y-agg" class="custom-select-small">
+                                    <option value="COUNT">Count</option>
+                                    <option value="SUM">Sum</option>
+                                    <option value="AVG">Avg</option>
+                                </select>
+                                <select id="viz-y-axis" class="custom-select"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="btn-generate-viz" class="primary-btn">Render Chart</button>
+                    </div>
+                </div>
+
+                <!-- View 2: Chart Result (Hidden by default) -->
+                <div id="viz-result-view" class="hidden">
+                    <div id="modal-chart-container" style="width: 100%; height: 350px;"></div>
+                    <div class="modal-footer flex-row mt-4">
+                        <button id="btn-viz-back" class="secondary-btn"><i data-lucide="arrow-left"></i> Edit</button>
+                        <button id="btn-viz-save" class="primary-btn ml-2">Send to Chat</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sql-modal" class="full-page-overlay hidden">
+            <div class="sql-page-container">
+                <!-- Header -->
+                <header class="sql-header">
+                    <div class="header-left">
+                        <button id="close-sql" class="back-btn"><i data-lucide="arrow-left"></i></button>
+                        <h3>SQL Console</h3>
+                    </div>
+                    <div class="header-actions">
+                        <button id="btn-run-sql" class="run-btn">
+                            <i data-lucide="play"></i> <span>Execute</span>
+                        </button>
+                        <button id="btn-sql-to-chat" class="chat-inject-btn hidden">
+                            <i data-lucide="message-square-plus"></i>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Editor Zone -->
+                <div class="sql-editor-workspace">
+                    <textarea id="sql-code-area"></textarea>
+                </div>
+
+                <!-- Result Zone -->
+                <div id="sql-result-pane">
+                    <div class="pane-header">
+                        <span>Query Results</span>
+                        <span id="result-count" class="badge">0 rows</span>
+                    </div>
+                    <div id="sql-table-wrapper">
+                        <table id="sql-grid">
+                            <thead id="sql-grid-head"></thead>
+                            <tbody id="sql-grid-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pivot Table Modal -->
+        <div id="pivot-modal" class="overlay-hidden">
+            <div class="modal-card viz-large">
+                <div class="modal-header">
+                    <h3><i data-lucide="layout-grid"></i> Pivot Table Lab</h3>
+                    <button id="close-pivot"><i data-lucide="x"></i></button>
+                </div>
+
+                <!-- View 1: Configuration -->
+                <div id="pivot-config-view">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Rows (Dimensions)</label>
+                            <select id="pivot-row-select" class="custom-select"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Columns (Pivot On)</label>
+                            <select id="pivot-col-select" class="custom-select"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Values (Metric)</label>
+                            <div class="flex-row">
+                                <select id="pivot-agg-select" class="custom-select-small">
+                                    <option value="SUM">Sum</option>
+                                    <option value="COUNT">Count</option>
+                                    <option value="AVG">Avg</option>
+                                </select>
+                                <select id="pivot-val-select" class="custom-select"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="btn-run-pivot" class="primary-btn">Compute Pivot</button>
+                    </div>
+                </div>
+
+                <!-- View 2: Result -->
+                <div id="pivot-result-view" class="hidden">
+                    <div id="pivot-table-wrapper" class="table-scroll-container">
+                        <table id="pivot-grid">
+                            <thead id="pivot-head"></thead>
+                            <tbody id="pivot-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer flex-row mt-4">
+                        <button id="btn-pivot-back" class="secondary-btn"><i data-lucide="arrow-left"></i> Edit</button>
+                        <button id="btn-pivot-chat" class="primary-btn ml-2">Send Summary to Chat</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Privacy Labs Modal -->
+        <div id="privacy-modal" class="overlay-hidden">
+            <div class="modal-card viz-large">
+                <div class="modal-header">
+                    <h3><i data-lucide="shield-check"></i> Privacy & Security Lab</h3>
+                    <button id="close-privacy"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="privacy-initial-view">
+                        <p class="text-sm text-gray-500 mb-4">Scan your dataset locally for Emails, Phone numbers, and Credit Card patterns.</p>
+                        <button id="btn-start-scan" class="primary-btn">Start Privacy Audit</button>
+                    </div>
+
+                    <!-- Scan Results View -->
+                    <div id="privacy-results-view" class="hidden">
+                        <div id="risk-summary" class="mb-4"></div>
+                        <div id="pii-list" class="table-scroll-container">
+                            <!-- Scan results injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer hidden" id="privacy-footer">
+                    <button id="btn-privacy-back" class="secondary-btn">Rescan</button>
+                    <button id="btn-privacy-done" class="primary-btn ml-2">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quality Labs Modal -->
+        <div id="quality-modal" class="overlay-hidden">
+            <div class="modal-card viz-large">
+                <div class="modal-header">
+                    <h3><i data-lucide="microscope"></i> Quality & Forensics Lab</h3>
+                    <button id="close-quality"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- View 1: Selection -->
+                    <div id="quality-initial-view">
+                        <div class="tool-grid">
+                            <button class="tool-card" id="btn-run-audit">
+                                <i data-lucide="heart-pulse" class="text-green"></i>
+                                <strong>Health Audit</strong>
+                                <span>Nulls, Duplicates, Uniqueness</span>
+                            </button>
+                            <button class="tool-card" id="btn-run-anomalies">
+                                <i data-lucide="zap" class="text-orange"></i>
+                                <strong>Anomaly Spotter</strong>
+                                <span>Statistical Outliers</span>
+                            </button>
+                            <button class="tool-card" id="btn-run-benford">
+                                <i data-lucide="fingerprint" class="text-blue"></i>
+                                <strong>Forensics</strong>
+                                <span>Benford's Law Analysis</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View 2: Results -->
+                    <div id="quality-results-view" class="hidden">
+                        <div id="quality-score-container" class="mb-4 text-center"></div>
+                        <div id="quality-details" class="table-scroll-container">
+                            <!-- Injected Results -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer hidden" id="quality-footer">
+                    <button id="btn-quality-back" class="secondary-btn">Back to Tools</button>
+                    <button id="btn-quality-chat" class="primary-btn ml-2">Send Report to Chat</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linkage & Joins Modal -->
+        <div id="linkage-modal" class="overlay-hidden">
+            <div class="modal-card viz-large">
+                <div class="modal-header">
+                    <h3><i data-lucide="git-merge"></i> Data Linkage Lab</h3>
+                    <button id="close-linkage"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Primary Table (Left)</label>
+                        <select id="join-table-left" class="custom-select"></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Joining Table (Right)</label>
+                        <select id="join-table-right" class="custom-select"></select>
+                    </div>
+
+                    <div id="linkage-config" class="mt-4 border-t pt-4">
+                        <div class="flex-row gap-4">
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-gray-500">Left Key</label>
+                                <select id="join-key-left" class="custom-select"></select>
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-gray-500">Right Key</label>
+                                <select id="join-key-right" class="custom-select"></select>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <label>Join Method</label>
+                            <select id="join-type" class="custom-select">
+                                <option value="LEFT">Standard Join (Exact Match)</option>
+                                <option value="FUZZY">Fuzzy Join (Similarity Match)</option>
+                                <option value="RECON">Reconciliation (3-Way Diff)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="fuzzy-threshold-container" class="hidden">
+                            <label class="text-xs font-bold text-orange-600">Similarity Threshold: <span id="threshold-val">80</span>%</label>
+                            <input type="range" id="fuzzy-threshold" min="50" max="100" value="80" class="w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="btn-run-linkage" class="primary-btn">Execute Linkage</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="spreadsheet-view" class="view-hidden">
+            <div class="view-header">
+                <!-- The header is now a single functional toolbar -->
+                <div class="header-toolbar-left">
+                    <button id="close-spreadsheet" class="icon-btn" title="Back to Chat">
+                        <i data-lucide="arrow-left"></i>
+                    </button>
+                    
+                    <div class="search-bar">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="spreadsheet-search" placeholder="Search in data...">
+                    </div>
+                </div>
+                
+                <div class="header-toolbar-right">
+                    <!-- Delete button appears here when rows are selected -->
+                    <button id="btn-delete-rows" class="secondary-btn text-red-600 hidden">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> <span>Delete</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AG Grid Container -->
+            <div id="spreadsheet-grid-container" class="ag-theme-material"></div>
+        </div>
+
+
+        <!-- Persona Selection Modal -->
+        <div id="persona-modal" class="modal-overlay">
+            <div class="modal-card viz-large">
+                <div class="modal-header border-b pb-4">
+                    <div>
+                        <h3 class="text-xl font-bold">Persona Manager</h3>
+                        <p class="text-xs text-gray-500">Customize your AI's expertise and tone for different analytical tasks.</p>
+                    </div>
+                    <button onclick="closeAllModals()" class="icon-btn"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="modal-body" style="max-height: 70vh;">
+                    <h4 class="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider">Premade Personas</h4>
+                    
+                    <div class="persona-grid">
+                        <div class="persona-card active" data-role="data_analyst">
+                            <div class="persona-icon bg-blue-100 text-blue-600"><i data-lucide="database"></i></div>
+                            <div class="persona-info">
+                                <strong>Data Analyst</strong>
+                                <span>Specialized in cleaning, statistical verification, and pattern recognition within complex datasets to ensure high-fidelity analytical outputs.</span>
+                            </div>
+                        </div>
+                        <div class="persona-card" data-role="business_analyst">
+                            <div class="persona-icon bg-green-100 text-green-600"><i data-lucide="briefcase"></i></div>
+                            <div class="persona-info">
+                                <strong>Business Analyst</strong>
+                                <span>Expert at bridging the gap between raw metrics and executive goals, focusing on ROI, KPIs, and actionable growth opportunities.</span>
+                            </div>
+                        </div>
+                        <div class="persona-card" data-role="ecommerce">
+                            <div class="persona-icon bg-orange-100 text-orange-600"><i data-lucide="shopping-cart"></i></div>
+                            <div class="persona-info">
+                                <strong>E-commerce Agent</strong>
+                                <span>Analyzes purchase funnels, customer acquisition costs, and SKU performance to drive higher conversion rates for digital storefronts.</span>
+                            </div>
+                        </div>
+                        <div class="persona-card" data-role="marketing">
+                            <div class="persona-icon bg-pink-100 text-pink-600"><i data-lucide="megaphone"></i></div>
+                            <div class="persona-info">
+                                <strong>Marketing Agency</strong>
+                                <span>Optimizes lead generation campaigns and funnel velocity, ensuring every marketing dollar spent translates into verifiable customer acquisition.</span>
+                            </div>
+                        </div>
+                        <div class="persona-card" data-role="ledger">
+                            <div class="persona-icon bg-purple-100 text-purple-600"><i data-lucide="book"></i></div>
+                            <div class="persona-info">
+                                <strong>Ledger Agent</strong>
+                                <span>Performs rigorous financial audits, transaction reconciliations, and balance checks to maintain perfect accounting accuracy and security.</span>
+                            </div>
+                        </div>
+                        <div class="persona-card" data-role="real_estate">
+                            <div class="persona-icon bg-yellow-100 text-yellow-600"><i data-lucide="home"></i></div>
+                            <div class="persona-info">
+                                <strong>Real Estate Agent</strong>
+                                <span>Evaluates property market valuation, location-based trends, and neighborhood demand analytics to assist in strategic asset management.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discovery Card -->
+                    <div class="discovery-card mt-8">
+                        <div class="discovery-icon-cluster">
+                            <i data-lucide="brain"></i>
+                            <i data-lucide="code"></i>
+                            <i data-lucide="book"></i>
+                        </div>
+                        <div class="discovery-text">
+                            <h3>Discover, create and manage Personas</h3>
+                            <p>Personas are custom versions of your AI that give you tailored responses. You can customize a premade persona or create one from scratch using custom instructions.</p>
+                        </div>
+                        <button class="primary-btn mt-4 w-auto px-6">+ New Persona</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- URL / Google Sheets Import Modal -->
+        <div id="url-import-modal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header border-b pb-4">
+                    <div>
+                        <h3 class="text-xl font-bold">Import from Web</h3>
+                        <p class="text-xs text-gray-500">Connect a public CSV URL or Google Sheets export link.</p>
+                    </div>
+                    <button onclick="document.getElementById('url-import-modal').classList.remove('active')" class="icon-btn"><i data-lucide="x"></i></button>
+                </div>
+                
+                <div class="modal-body pt-4">
+                    <div class="form-group mb-4">
+                        <label class="text-sm font-bold text-gray-700 block mb-2">Data URL</label>
+                        <input type="text" id="import-url-input" class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv">
+                        <p class="text-[10px] text-gray-400 mt-2">For Google Sheets, change <b>/edit</b> in the URL to <b>/export?format=csv</b>.</p>
+                    </div>
+                    
+                    <div class="form-group mb-4">
+                        <label class="text-sm font-bold text-gray-700 block mb-2">Table Name</label>
+                        <input type="text" id="import-name-input" class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none" placeholder="e.g. q1_sales_data">
+                    </div>
+                </div>
+
+                <div class="modal-footer mt-4">
+                    <button id="btn-run-url-import" class="primary-btn w-full flex justify-center items-center gap-2">
+                        <i data-lucide="cloud-download" class="w-4 h-4"></i> Import Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agentic Background Modal -->
+        <div id="agentic-bg-modal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header border-b pb-4">
+                    <div>
+                        <h3 class="text-xl font-bold">Agentic Background</h3>
+                        <p class="text-xs text-gray-500">Provide company context to tailor the AI's strategic insights.</p>
+                    </div>
+                    <button onclick="closeAllModals()" class="icon-btn"><i data-lucide="x"></i></button>
+                </div>
+                
+                <div class="modal-body pt-4">
+                    <!-- Toggle -->
+                    <div class="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="power" class="text-blue-600 w-5 h-5"></i>
+                            <div class="flex flex-col">
+                                <span class="font-bold text-sm text-gray-800">Enable Background Context</span>
+                                <span class="text-xs text-gray-500">Inject this data into AI prompts.</span>
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="bg-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+
+                    <!-- Inputs -->
+                    <div class="form-group">
+                        <label>Company Name</label>
+                        <input type="text" id="bg-company-name" class="custom-select" placeholder="e.g. Acme Corp">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Industry / Sector</label>
+                        <input type="text" id="bg-industry" class="custom-select" placeholder="e.g. D2C, SaaS, Real Estate">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Company Description</label>
+                        <textarea id="bg-description" class="custom-select" rows="4" maxlength="500" placeholder="Briefly describe your business model and goals..."></textarea>
+                        <div class="text-right text-xs text-gray-400 mt-2"><span id="bg-char-count">0</span>/500 characters</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer mt-4">
+                    <button id="btn-save-bg" class="primary-btn flex justify-center items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i> Save Context
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Heads-Up Display Modal -->
+        <div id="headsup-modal" class="modal-overlay">
+            <!-- Inline styles here make it wide to accommodate the split view -->
+            <div class="modal-card viz-large" style="max-width: 900px; height: 80vh; padding: 0;">
+                
+                <div class="modal-header border-b" style="padding: 24px 24px 16px;">
+                    <div>
+                        <h3 class="text-xl font-bold">Data Explorer</h3>
+                        <p class="text-xs text-gray-500">Heads-up preview of all datasets in your local vault.</p>
+                    </div>
+                    <button onclick="closeAllModals()" class="icon-btn"><i data-lucide="x"></i></button>
+                </div>
+
+                <!-- Master-Detail Layout -->
+                <div class="modal-body" style="padding: 0; flex-direction: row; overflow: hidden;">
+                    
+                    <!-- Left: Table List -->
+                    <div style="width: 240px; background: #f8f9fa; border-right: 1px solid #e3e3e3; padding: 16px; overflow-y: auto;" id="headsup-table-list">
+                        <!-- Table items injected here -->
+                    </div>
+                    
+                    <!-- Right: Data Preview -->
+                    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff;">
+                        <div id="headsup-grid-container" class="ag-theme-alpine" style="flex: 1; width: 100%;">
+                            <div style="display:flex; height:100%; align-items:center; justify-content:center; color:#9ca3af; font-size:13px;">
+                                Select a table from the left to preview.
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- KrataBook Reader View -->
+        <div id="kratabook-view" class="view-hidden">
+            <div class="view-header">
+                <div class="flex items-center gap-4">
+                    <button id="close-kratabook" class="icon-btn">
+                        <i data-lucide="arrow-left"></i>
+                    </button>
+                    <h3 id="kratabook-title-display">KrataBook Report</h3>
+                </div>
+                <!-- Delete button removed from here -->
+            </div>
+            <div id="kratabook-content-area" class="report-content prose">
+                <!-- Markdown report rendered here -->
+            </div>
+        </div>
+
+        <!-- KrataBook Generation Lock Modal -->
+        <div id="kb-loader-modal" class="modal-overlay" style="z-index: 11000; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);">
+            <div class="loader-content text-center">
+                <div class="kb-pulse-icon">
+                    <i data-lucide="book-open-check"></i>
+                </div>
+                <h2 class="text-2xl font-bold mt-6 text-gray-800">Generating KrataBook</h2>
+                <p class="text-gray-500 mt-2">Stage: <span id="kb-loader-status">Initializing deep audit...</span></p>
+                
+                <!-- Minimalist Progress Bar -->
+                <div class="kb-progress-container mt-8">
+                    <div class="kb-progress-fill"></div>
+                </div>
+                
+                <p class="text-[10px] uppercase tracking-widest text-gray-400 mt-12">System is locked during generation</p>
+            </div>
+        </div>
+
+    
+    </main>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: false, 
+            suppressErrorRendering: true, // 🚀 This stops the floating error bubble
+            securityLevel: 'loose',
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#e8f0fe',
+                primaryTextColor: '#1f1f1f',
+                primaryBorderColor: '#0b57d0',
+                lineColor: '#70757a',
+                secondaryColor: '#fce8e6',
+                tertiaryColor: '#e6f4ea'
+            }
+        });
+        // Attach to window so our other JS files can trigger it
+        window.mermaid = mermaid;
+    </script>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
