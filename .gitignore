@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Local Environment Secrets (CRITICAL for security)
+.env
+.env.local
+
+# Build output
+dist/
+
+# Browser/OS junk
+.DS_Store
+Thumbs.db
