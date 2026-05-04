@@ -115,7 +115,7 @@ export async function loadItems(filterType = 'all') {
                         <span class="text-[12px] font-bold ${theme.text}">${authorDisplay}</span>
                         <!-- Item Type Icon -->
                         <div class="ml-1 opacity-40">
-                             <i data-lucide="${theme.icon}" style="width:10px; height:10px;"></i>
+                             <i data-lucide="${theme.icon}" style="width:18px; height:18px; padding-top: 16px;"></i>
                         </div>
                     </div>
 
@@ -129,8 +129,8 @@ export async function loadItems(filterType = 'all') {
 
                 <div onclick="openWorkspaceItem('${item.id}')" class="mt-4" style="flex:1">
                     <strong class="text-sm text-gray-900 block line-clamp-2 leading-tight">${item.title}</strong>
-                    <p class="text-[10px] text-gray-500 mt-2 flex items-center gap-1.5 opacity-80">
-                        <i data-lucide="clock" class="w-3 h-3"></i> 
+                    <p class="text-[10px] text-gray-500 mt-2 flex items-center gap-1.5 opacity-80" style="font-size: small;">
+                        <i data-lucide="clock" style="width: 10px; height: 10px;"></i> 
                         ${new Date(item.created_at).toLocaleDateString()}
                     </p>
                 </div>
