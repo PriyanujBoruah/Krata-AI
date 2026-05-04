@@ -2216,7 +2216,20 @@ main {
     100% { transform: translateX(250%); }
 }
 
+#kb-config-modal select {
+    margin: 10px 5px;
+}
 
+#kb-config-modal .radio-card {
+    margin: 10px 5px;
+}
+
+#kb-config-modal .radio-card input[type="radio"] {
+    width: 16px !important; 
+    height: 16px !important;
+    border-radius: 9999px !important;
+    padding: 8px !important;
+}
 
 
 
