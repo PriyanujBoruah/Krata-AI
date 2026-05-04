@@ -3137,7 +3137,13 @@ main {
 }
 
 .user-avatar img {
-    width: 100%;
+    width: 36px !important;
+    height: 100%;
+    object-fit: cover; /* Prevents stretching */
+}
+
+#profile-large-avatar img {
+    width: 100% !important;
     height: 100%;
     object-fit: cover; /* Prevents stretching */
 }
@@ -3215,9 +3221,14 @@ main {
     justify-content: center;
 }
 
+#profile-greeting {
+    margin-bottom: 10px !important;
+    font-size: medium;
+}
+
 /* Large Avatar Styling */
 .profile-avatar-wrapper {
-    padding: 4px;
+    padding: 2px;
     border-radius: 50%;
     /* Google-style 4-color gradient border */
     background: conic-gradient(from 180deg, #ea4335 0deg, #4285f4 90deg, #34a853 180deg, #fbbc05 270deg, #ea4335 360deg);
@@ -3229,6 +3240,7 @@ main {
     font-size: 32px;
     margin-left: 0; /* Reset margin from the small header version */
     border: 2px solid white; /* Creates a gap inside the colored ring */
+    border-radius: 100%;
 }
 
 /* Pill Button */
@@ -3267,6 +3279,7 @@ main {
 
 #profile-org-display {
     line-height: 1;
+    padding-bottom: 20px;
 }
 
 /* Ensure the icon is small but clear */
@@ -4852,6 +4865,11 @@ input[type="radio"]:focus {
 }
 
 .workspace-card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+
+.workspace-card img {
+    border-radius: 100%;
+    width: 32px;
+}
 
 .card-badge {
     font-size: 9px;
