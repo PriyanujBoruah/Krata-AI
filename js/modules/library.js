@@ -75,9 +75,9 @@ export async function loadLibraryItems(filterType = 'all') {
                 <div class="card-header">
                     <div class="flex items-center gap-2">
                         <div class="p-1.5 rounded-lg bg-white ${theme.text} shadow-sm border border-white/50">
-                            <i data-lucide="${theme.icon}" class="w-4 h-4"></i>
+                            <i data-lucide="${theme.icon}" style="width:16px; height:16px;"></i>
                         </div>
-                        <span class="text-[12px] font-bold ${theme.text}">Personal</span>
+                        <span class="text-[12px] font-bold ${theme.text}" style="font-size: small;">Personal</span>
                     </div>
 
                     <button class="delete-workspace-item text-gray-400 hover:text-red-600 hover:bg-red-50" 
@@ -88,9 +88,9 @@ export async function loadLibraryItems(filterType = 'all') {
 
                 <!-- BOTTOM CONTENT: Title + Date -->
                 <div onclick="openLibraryItem('${item.id}')" class="mt-4" style="flex:1">
-                    <strong class="text-sm text-gray-900 block line-clamp-2 leading-tight">${item.title}</strong>
-                    <p class="text-[10px] text-gray-500 mt-2 flex items-center gap-1.5 opacity-80">
-                        <i data-lucide="clock" class="w-3 h-3"></i> 
+                    <strong class="text-sm text-gray-900 block line-clamp-2 leading-tight" style="font-size: medium;">${item.title}</strong>
+                    <p class="text-[10px] text-gray-500 mt-2 flex items-center gap-1.5 opacity-80" style="font-size: small;">
+                        <i data-lucide="clock" style="width: 10px; height: 10px;"></i> 
                         ${new Date(item.created_at).toLocaleDateString()}
                     </p>
                 </div>
