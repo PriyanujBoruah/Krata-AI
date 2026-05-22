@@ -40,6 +40,7 @@ import { parseBannerTable } from './modules/banner-parser.js';
 const state = {
     activeTable: null,
     allTables: [], // Track all ingested tables
+    contextTables: [],
     isDatabaseReady: false
 };
 
@@ -196,6 +197,53 @@ async function init() {
 }
 
 /**
+ * RECONCILES CONTEXT DROPDOWN
+ * Renders checkboxes for all tables except the currently active one.
+ */
+function updateContextSelector() {
+    const container = document.getElementById('context-list-container');
+    const label = document.getElementById('link-context-label');
+    const otherTables = state.allTables.filter(t => t !== state.activeTable);
+
+    if (otherTables.length === 0) {
+        container.innerHTML = `<div class="text-xs text-gray-400 italic">No reference tables available.</div>`;
+        label.innerHTML = `Link Context`;
+        state.contextTables = []; // reset
+        return;
+    }
+
+    // Render checkboxes
+    container.innerHTML = otherTables.map(tableName => {
+        const isChecked = state.contextTables.includes(tableName);
+        return `
+            <label class="flex items-center gap-2.5 cursor-pointer text-xs py-1 hover:bg-gray-50 rounded px-1.5 transition-colors">
+                <input type="checkbox" class="context-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                       value="${tableName}" 
+                       ${isChecked ? 'checked' : ''}>
+                <span class="text-gray-700 font-medium truncate">${tableName}</span>
+            </label>
+        `;
+    }).join('');
+
+    // Attach click listeners to the checkboxes
+    document.querySelectorAll('.context-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const val = cb.value;
+            if (cb.checked) {
+                if (!state.contextTables.includes(val)) state.contextTables.push(val);
+            } else {
+                state.contextTables = state.contextTables.filter(t => t !== val);
+            }
+            
+            // Update button label to show how many are linked
+            const count = state.contextTables.length;
+            label.innerHTML = count > 0 ? `Context Linked (${count})` : `Link Context`;
+        });
+    });
+}
+
+
+/**
  * 2. EVENT LISTENERS
  */
 function setupEventListeners() {
@@ -325,6 +373,10 @@ function setupEventListeners() {
 
         // Clear file picker so the same files can be re-uploaded if needed
         filePicker.value = "";
+    });
+
+    document.getElementById('btn-link-context').addEventListener('click', () => {
+        updateContextSelector();
     });
 
     /**
@@ -730,7 +782,7 @@ function setupEventListeners() {
         btnSidebarKrata.addEventListener('click', () => {
             if (!state.activeTable) return alert("Please upload a dataset first.");
             
-            // Populate the persona dropdown dynamically from our imported config
+            // 1. Populate the Persona Dropdown (Existing)
             const personaSelect = document.getElementById('kb-persona');
             import('./modules/personas.js').then(mod => {
                 personaSelect.innerHTML = Object.entries(mod.PERSONA_CONFIGS).map(([id, p]) => 
@@ -738,9 +790,26 @@ function setupEventListeners() {
                 ).join('');
             });
 
+            // 2. 🚀 NEW: Populate the Context Tables Checkbox List
+            const contextList = document.getElementById('kb-context-tables-list');
+            // Filter out the active table so we don't offer it as a context table to itself
+            const otherTables = state.allTables.filter(t => t !== state.activeTable);
+
+            if (otherTables.length === 0) {
+                contextList.innerHTML = `<div class="text-xs text-gray-400 italic">No other tables found in your local vault.</div>`;
+            } else {
+                contextList.innerHTML = otherTables.map(t => `
+                    <label class="flex items-center gap-2 cursor-pointer text-xs py-1 hover:bg-gray-100 rounded px-1.5 transition-colors">
+                        <input type="checkbox" name="kb-context-table" value="${t}" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="text-gray-700 font-medium truncate">${t}</span>
+                    </label>
+                `).join('');
+            }
+
             window.openModal('kb-config-modal');
         });
     }
+
 
     // 2. The Modal "Generate" Button: Does the actual work
     const btnConfirmKB = document.getElementById('btn-confirm-generate-kb');
@@ -749,39 +818,57 @@ function setupEventListeners() {
             const loaderModal = document.getElementById('kb-loader-modal');
             const statusText = document.getElementById('kb-loader-status');
             
-            // Gather user selection from the modal
+            // Collect checked context tables
+            const checkedBoxes = document.querySelectorAll('input[name="kb-context-table"]:checked');
+            const selectedContextTables = Array.from(checkedBoxes).map(box => box.value);
+
+            // 🚀 NEW: Resolve the final Archetype Type (Default vs Custom)
+            const selectedType = document.getElementById('kb-type').value;
+            const customType = document.getElementById('kb-custom-type').value.trim();
+            
+            const finalType = selectedType === 'Custom' ? (customType || "Custom Report") : selectedType;
+
             const config = {
-                type: document.getElementById('kb-type').value,
+                type: finalType, // 🚀 Now fully dynamic
                 personaId: document.getElementById('kb-persona').value,
-                branding: document.querySelector('input[name="kb-branding"]:checked').value
+                branding: document.querySelector('input[name="kb-branding"]:checked').value,
+                contextTables: selectedContextTables 
             };
 
-            // Close config and show loader
             closeAllModals();
             loaderModal.classList.add('active');
             statusText.innerText = `Initializing ${config.type}...`;
 
             try {
-                // Update status mid-way for effect
-                setTimeout(() => { 
-                    if(loaderModal.classList.contains('active')) 
-                        statusText.innerText = "Synthesizing strategic insights..."; 
-                }, 2500);
-
-                // Critical: Pass both the table and the config object
                 await createKrataBook(state.activeTable, config);
-                
                 await refreshKrataBookSidebar();
-                addSystemMessage(`✨ **KrataBook Created.** Archetype: **${config.type}**. Checked into your local vault.`);
-
+                addSystemMessage(`✨ **KrataBook Created.** Archetype: **${config.type}**.`);
             } catch (e) {
-                console.error("KrataBook Generation Error:", e);
+                console.error(e);
                 alert("Failed to generate KrataBook: " + e.message);
             } finally {
                 loaderModal.classList.remove('active');
             }
         });
     }
+
+
+    // 🚀 NEW: Toggle Custom Archetype Input
+    const kbTypeSelect = document.getElementById('kb-type');
+    const kbCustomWrapper = document.getElementById('kb-custom-type-wrapper');
+
+    if (kbTypeSelect && kbCustomWrapper) {
+        kbTypeSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'Custom') {
+                kbCustomWrapper.classList.remove('hidden');
+                document.getElementById('kb-custom-type').focus();
+            } else {
+                kbCustomWrapper.classList.add('hidden');
+                document.getElementById('kb-custom-type').value = ""; // Clear input
+            }
+        });
+    }
+
 
     // --- User Profile Listeners ---
 
@@ -1255,13 +1342,25 @@ function setupEventListeners() {
         addSystemMessage(`📊 **Intelligence Pipeline Active.** Flattening the crosstab dataset **${file.name}**...`);
 
         try {
-            // Import the deterministic parser we built
+            // Import the deterministic parser
             const { parseBannerTable } = await import('./modules/banner-parser.js');
             
-            // 1. Run the local JS parser (0ms tokens used)
+            // 1. Run the local JS parser
             const flatJson = await parseBannerTable(file);
             
-            // 2. Ingest the clean tidy JSON array into DuckDB
+            // 🚀 THE FIX: If the parser found no valid crosstab data, stop immediately!
+            if (!flatJson || flatJson.length === 0) {
+                addSystemMessage(
+                    `⚠️ **Conversion Aborted:** I extracted **0 records** from **${file.name}**.<br><br>` + 
+                    `This file does not appear to contain a standard horizontally-split crosstab report (no segment bases like 'N=xxxx' were identified).<br><br>` +
+                    `*Tip: For standard reference tables, legends, or flat datasets, please use the standard **Upload Dataset** menu instead.*`, 
+                    true
+                );
+                e.target.value = ""; // Clear picker
+                return; // Stop execution before database crash
+            }
+            
+            // 2. Ingest the clean tidy JSON array into DuckDB (Only if we have rows!)
             await ingestJsonArray(tableName, flatJson);
             
             const schema = await getTableSchema(tableName);
@@ -1271,7 +1370,8 @@ function setupEventListeners() {
             if (!state.allTables.includes(tableName)) state.allTables.push(tableName);
 
             // 4. Update UI
-            introScreen.style.display = 'none';
+            const intro = document.getElementById('intro-screen');
+            if (intro) intro.style.display = 'none';
             userPrompt.placeholder = `Ask about ${tableName}...`;
             updateDataSelector(state); 
             
@@ -1288,6 +1388,21 @@ function setupEventListeners() {
         } finally {
             e.target.value = ""; // Reset picker
         }
+    });
+
+    // 1. Open Join Modal from the + Dropdown
+    document.getElementById('btn-open-join').addEventListener('click', () => {
+        document.getElementById('menu-plus').classList.add('hidden'); // Close dropdown
+        import('./modules/join-engine.js').then(mod => {
+            mod.openJoinModal(state.activeTable, state.allTables);
+        });
+    });
+
+    // 2. Execute the Join
+    document.getElementById('btn-execute-join').addEventListener('click', () => {
+        import('./modules/join-engine.js').then(mod => {
+            mod.executeJoin();
+        });
     });
 
 }
@@ -1382,7 +1497,7 @@ async function handleSendMessage(overridePrompt = null, isSilent = false) {
     let fullResponse = "";
     try {
         // 4. Call Agent Stream with the resolved text
-        const stream = askAgentStream(text, state.activeTable);
+        const stream = askAgentStream(text, state.activeTable, state.contextTables);
         
         for await (const chunk of stream) {
             if (chunk.type === 'status') {
