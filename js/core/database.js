@@ -29,9 +29,35 @@ export async function initDatabase() {
 
 export async function runQuery(sql) {
     if (!conn) throw new Error("Database connection not initialized.");
-    const result = await conn.query(sql);
-    return result.toArray().map(row => row.toJSON());
+
+    // 🚀 THE SHIELD: Strip any trailing semicolons at the very end of the SQL block.
+    // This prevents empty statement execution errors (e.g., executing ";" as a blank query)
+    const sanitizedSql = sql.trim().replace(/;+$/, '');
+
+    // Split by semicolons OR newlines followed by a SQL keyword
+    const statements = sanitizedSql
+        .split(/;|\n(?=ALTER|UPDATE|DELETE|INSERT|SELECT|CREATE|DROP|PRAGMA)/gi)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+    let lastResult = [];
+
+    for (const statement of statements) {
+        // Append a single clean semicolon for DuckDB's parser
+        const cleanStmt = statement.endsWith(';') ? statement : statement + ';';
+        
+        try {
+            const result = await conn.query(cleanStmt);
+            lastResult = result.toArray().map(row => row.toJSON());
+        } catch (e) {
+            console.error("Statement execution failed:", cleanStmt);
+            throw e; 
+        }
+    }
+    
+    return lastResult;
 }
+
 
 /**
  * Helper: Converts flat tabular XML into a JSON Array
