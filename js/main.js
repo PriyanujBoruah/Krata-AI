@@ -26,7 +26,7 @@ import { fetchWithRetry } from './core/utils.js';
 import { runAutoClean } from './modules/auto-clean.js';
 import { initWorkspaceUI } from './modules/workspace.js';
 import { initLibraryUI, saveToLibrary } from './modules/library.js';
-
+import { parseBannerTable } from './modules/banner-parser.js';
 
 
 
@@ -42,6 +42,7 @@ const state = {
     allTables: [], // Track all ingested tables
     isDatabaseReady: false
 };
+
 
 /**
  * DOM Elements - Main Layout
@@ -290,25 +291,22 @@ function setupEventListeners() {
         // ============================================================
         // BRANCH 2: STRUCTURED PIPELINE (CSV/Excel/JSON/XML)
         // ============================================================
+        // 🚀 RESTORED: Standard, fast raw data loading (no automatic guessing)
         for (const file of structuredFiles) {
             const tableName = file.name.split('.')[0].replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             userPrompt.placeholder = `Indexing ${file.name}...`;
 
             try {
-                // Cleanup existing table to prevent catalog collisions
                 if (state.allTables.includes(tableName)) {
                     await runQuery(`DROP TABLE IF EXISTS "${tableName}"`);
                 }
 
-                // Register the file into DuckDB
                 await registerFile(file);
                 const schema = await getTableSchema(tableName);
 
-                // Update State
                 state.activeTable = tableName;
                 if (!state.allTables.includes(tableName)) state.allTables.push(tableName);
 
-                // Update UI
                 introScreen.style.display = 'none';
                 userPrompt.placeholder = `Ask about ${tableName}...`;
                 updateDataSelector(state); 
@@ -316,10 +314,7 @@ function setupEventListeners() {
                 await showSmartChips(tableName, runQuery);
                 addSystemMessage(`✅ Successfully indexed **${file.name}**.`);
                 
-                // Trigger Post-Ingestion Audit
                 setTimeout(() => triggerIntelligenceCheckup(tableName), 800);
-                
-                // Generate dynamic suggestion pills
                 setupProactivePills(tableName, schema);
 
             } catch (err) {
@@ -1245,6 +1240,55 @@ function setupEventListeners() {
         import('./modules/pareto-engine.js').then(mod => mod.openParetoModal());
     });
 
+    // 🚀 NEW: CONVERT BANNER TABLE TOOL
+    // 1. Trigger the hidden file picker when menu item is clicked
+    window.addEventListener('trigger-banner-convert', () => {
+        document.getElementById('banner-file-picker').click();
+    });
+
+    // 2. Handle the manual conversion
+    document.getElementById('banner-file-picker').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const tableName = `banner_flat_${Date.now().toString().slice(-4)}`;
+        addSystemMessage(`📊 **Intelligence Pipeline Active.** Flattening the crosstab dataset **${file.name}**...`);
+
+        try {
+            // Import the deterministic parser we built
+            const { parseBannerTable } = await import('./modules/banner-parser.js');
+            
+            // 1. Run the local JS parser (0ms tokens used)
+            const flatJson = await parseBannerTable(file);
+            
+            // 2. Ingest the clean tidy JSON array into DuckDB
+            await ingestJsonArray(tableName, flatJson);
+            
+            const schema = await getTableSchema(tableName);
+
+            // 3. Update App State
+            state.activeTable = tableName;
+            if (!state.allTables.includes(tableName)) state.allTables.push(tableName);
+
+            // 4. Update UI
+            introScreen.style.display = 'none';
+            userPrompt.placeholder = `Ask about ${tableName}...`;
+            updateDataSelector(state); 
+            
+            await showSmartChips(tableName, runQuery);
+            addSystemMessage(`✅ **Success:** Crosstab converted. Created flat table **${tableName}**.`);
+            
+            // Trigger checkup & suggest marketing pills
+            setTimeout(() => triggerIntelligenceCheckup(tableName), 800);
+            setupProactivePills(tableName, schema);
+
+        } catch (err) {
+            console.error("Manual Conversion Error:", err);
+            addSystemMessage(`❌ Conversion failed: Server is busy.`, true);
+        } finally {
+            e.target.value = ""; // Reset picker
+        }
+    });
 
 }
 
