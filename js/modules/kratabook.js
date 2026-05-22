@@ -13,15 +13,30 @@ const API_URL = "https://api.mistral.ai/v1/chat/completions";
 export async function createKrataBook(activeTable, config) {
     if (!config) throw new Error("Report configuration is missing.");
 
-    // 1. Get user session
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error("User session expired.");
 
     const orgId = user.user_metadata?.org_id;
 
-    // 2. Get the Data Profile
+    // 1. Get the Primary Table Profile
     const profile = await getDeepTableProfile(activeTable);
     
+    // 2. 🚀 NEW: Get the Profiles of all selected Context Tables
+    let extraContextPrompt = "";
+    if (config.contextTables && config.contextTables.length > 0) {
+        extraContextPrompt = "\n\n--- RELATIONAL CONTEXT (EXTRA MAPPING TABLES) ---\n";
+        
+        for (const t of config.contextTables) {
+            const contextProfile = await getDeepTableProfile(t);
+            extraContextPrompt += `
+            Table Name: "${t}"
+            Column Map:
+            ${contextProfile.columns.join('\n')}
+            \n`;
+        }
+        extraContextPrompt += "------------------------------------------------\n\n";
+    }
+
     // 3. Resolve Persona and Context
     const persona = PERSONA_CONFIGS[config.personaId] || PERSONA_CONFIGS['data_analyst'];
     const companyContext = getAgenticContextString();
@@ -30,23 +45,24 @@ export async function createKrataBook(activeTable, config) {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${MISTRAL_API_KEY}` },
         body: JSON.stringify({
-            model: "mistral-medium-latest",
+            model: "mistral-large-latest", // 🚀 Mistral Large is crucial for handling multiple schemas
             messages: [{
                 role: "system",
-                content: `You are a Senior ${persona.name}. Write a ${config.type} report for the table: ${activeTable}.
+                content: `You are a Senior ${persona.name}. Write a ${config.type} report.
                 
+                PRIMARY SUBJECT TABLE: "${activeTable}"
+                PRIMARY SCHEMA:
+                ${profile.columns.join('\n')}
+                ${extraContextPrompt} -- 🚀 Injected Relational Context
+
                 --- BUSINESS CONTEXT ---
                 ${config.branding === 'agentic' ? companyContext : 'Standard analytical context.'}
                 
-                --- DATA PROFILE ---
-                ${profile.columns.join('\n')}
-                
-                RULES:
+                CORE INSTRUCTIONS:
                 - Focus strictly on ${config.type} objectives.
-                - Use professional Markdown.
-                - Flag missing data as a strategic risk.
-                -STRICT NEGATIVE CONSTRAINT: Do not include "Next Steps", "Implementation Plans", or "Roadmaps".
-                End the document with a high-level summary of findings.`
+                - Use the EXTRA MAPPING TABLES to decode any cryptic column codes (like CSEX or CTRA1) found in the PRIMARY SCHEMA.
+                - Use professional Markdown with H1, H2, and bold highlights.
+                - Strictly avoid generating "Next Steps" or motivational roadmaps.`
             }],
             temperature: 0.3
         })
@@ -58,7 +74,7 @@ export async function createKrataBook(activeTable, config) {
     // 4. Save to Supabase with Org ID
     const { error } = await supabaseClient.from('kratabooks').insert([{ 
         user_id: user.id, 
-        org_id: orgId, // 🚀 Saved to Org
+        org_id: orgId, 
         title: `${config.type}: ${activeTable}`, 
         content: reportContent,
         metadata: config 
