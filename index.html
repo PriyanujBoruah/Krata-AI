@@ -381,6 +381,9 @@
                                 <button class="menu-item" onclick="document.getElementById('append-unstructured-picker').click()">
                                     <i data-lucide="scan-text"></i> Upload PDF / Image
                                 </button>
+                                <button class="menu-item" id="btn-open-join">
+                                    <i data-lucide="git-merge"></i> Join Table Context
+                                </button>
                             </div>
                         </div>
 
@@ -392,6 +395,19 @@
                     </div>
 
                     <div class="right-group">
+                        <div class="menu-wrapper">
+                            <button id="btn-link-context" class="data-selector-pill" title="Link Reference Tables">
+                                <span id="link-context-label">Link Context</span>
+                                <i data-lucide="link" class="w-4 h-4 opacity-50"></i>
+                            </button>
+                            <div id="context-dropdown" class="dropdown-menu data-menu hidden" style="width: 260px;">
+                                <div class="dropdown-header">Link Reference Tables</div>
+                                <div id="context-list-container" class="p-3 space-y-1.5 max-h-48 overflow-y-auto">
+                                    <div class="text-xs text-gray-400 italic">No reference tables available.</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="menu-wrapper">
                             <!-- Dataset/Table Selector Button -->
                             <button id="btn-data-selector" class="data-selector-pill">
@@ -837,7 +853,14 @@
                             <option value="Growth Strategy">Weekly Growth Audit (D2C/E-com Focus)</option>
                             <option value="Investor Brief">Investor Brief (High-level KPIs & ROI)</option>
                             <option value="Forensic Ledger">Forensic Ledger (Anomaly & Risk Focus)</option>
+                            <option value="Custom">Custom Archetype...</option>
                         </select>
+                    </div>
+
+                    <!-- 🚀 NEW: Hidden Custom Type Wrapper -->
+                    <div id="kb-custom-type-wrapper" class="form-group mb-4 hidden">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Specify Custom Archetype</label>
+                        <input type="text" id="kb-custom-type" class="custom-select" placeholder="e.g. Q3 Instagram ROI Assessment">
                     </div>
 
                     <!-- 2. Persona Override -->
@@ -846,6 +869,14 @@
                         <select id="kb-persona" class="custom-select">
                             <!-- Options populated via JS to match current personas -->
                         </select>
+                    </div>
+
+                    <div class="form-group mt-4">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Include Extra Context Tables (Legends/Mappings)</label>
+                        <div id="kb-context-tables-list" class="space-y-2 max-h-32 overflow-y-auto p-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <!-- Checkboxes will be injected dynamically here -->
+                            <div class="text-xs text-gray-400 italic">No other tables available.</div>
+                        </div>
                     </div>
 
                     <!-- 3. Branding/Style -->
@@ -1309,6 +1340,57 @@
                     </button>
                     <!-- Only shown initially -->
                     <button id="btn-run-pareto-auto" class="primary-btn w-auto px-8">Run Autonomous Audit</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Table Context Modal -->
+        <div id="join-modal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header border-b pb-4">
+                    <div>
+                        <h3 class="text-xl font-bold">Join Table Context</h3>
+                        <p class="text-xs text-gray-500">Perform a hard relational join to merge two tables in your vault.</p>
+                    </div>
+                    <button onclick="closeAllModals()" class="icon-btn"><i data-lucide="x"></i></button>
+                </div>
+                
+                <div class="modal-body pt-4">
+                    <!-- 1. Left Table (Pre-selected) -->
+                    <div class="form-group mb-4">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Primary Table (Left)</label>
+                        <input type="text" id="join-left-table-display" class="custom-select" readonly style="background:#f1f3f4; color:#5f6368;">
+                    </div>
+
+                    <!-- 2. Right Table -->
+                    <div class="form-group mb-4">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Join With (Right Table)</label>
+                        <select id="join-right-table-select" class="custom-select"></select>
+                    </div>
+
+                    <!-- 3. Key Selectors -->
+                    <div class="flex gap-4 mb-4">
+                        <div class="flex-1">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Left Key Column</label>
+                            <select id="join-left-key" class="custom-select-small" style="width:100%"></select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Right Key Column</label>
+                            <select id="join-right-key" class="custom-select-small" style="width:100%"></select>
+                        </div>
+                    </div>
+
+                    <!-- 4. Output Table Name -->
+                    <div class="form-group mb-4">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Output Table Name</label>
+                        <input type="text" id="join-output-name" class="custom-select" placeholder="e.g. consolidated_results">
+                    </div>
+                </div>
+
+                <div class="modal-footer mt-4 border-t pt-4">
+                    <button id="btn-execute-join" class="primary-btn w-full flex justify-center items-center gap-2">
+                        <i data-lucide="git-commit" class="w-4 h-4"></i> Execute Relational Join
+                    </button>
                 </div>
             </div>
         </div>
