@@ -127,31 +127,52 @@ export async function registerFile(file) {
 // js/core/database.js
 
 /**
- * ROBUST JSON INJECTOR: Creates a unified table from an array of objects
+ * HIGH-PERFORMANCE EXTENSION-FREE INJECTOR
+ * Converts a Javascript Array of Objects into a flat CSV string in memory 
+ * and ingests it natively using DuckDB's built-in read_csv_auto engine.
+ * 100% offline-friendly, zero network dependencies, zero WebAssembly crashes.
  */
 export async function ingestJsonArray(tableName, jsonArray) {
     if (!jsonArray || jsonArray.length === 0) return;
 
-    // 1. Identify EVERY unique column name across all rows
+    console.log(`[Database] Initiating ultra-fast native CSV-bridge ingestion of ${jsonArray.length} rows...`);
+    const startTime = performance.now();
+
+    // 1. Identify EVERY unique column name across all rows to build the headers
     const allKeys = new Set();
     jsonArray.forEach(row => Object.keys(row).forEach(key => allKeys.add(key)));
     const columnNames = Array.from(allKeys);
 
-    // 2. Create the table
-    const colDef = columnNames.map(c => `"${c}" VARCHAR`).join(', ');
-    await conn.query(`CREATE TABLE "${tableName}" (${colDef})`);
+    // 2. Build the CSV Header Row (escaping quotes for safety)
+    const headers = columnNames.map(c => `"${c.replace(/"/g, '""')}"`).join(',');
 
-    // 3. Insert rows
-    for (const row of jsonArray) {
-        // Only insert columns that exist in THIS specific row
-        const rowKeys = Object.keys(row).map(k => `"${k}"`).join(', ');
-        const rowValues = Object.values(row).map(val => {
-            const safeVal = val === null || val === undefined ? '' : String(val).replace(/'/g, "''");
-            return `'${safeVal}'`;
-        }).join(', ');
+    // 3. Build the CSV Data Rows in memory
+    const rows = jsonArray.map(row => {
+        return columnNames.map(col => {
+            const val = row[col];
+            if (val === null || val === undefined) return ''; // Empty string represents NULL in CSV
+            
+            // Convert to string and escape internal double-quotes (RFC 4180 standard)
+            const safeVal = String(val).replace(/"/g, '""');
+            return `"${safeVal}"`;
+        }).join(',');
+    }).join('\n');
 
-        await conn.query(`INSERT INTO "${tableName}" (${rowKeys}) VALUES (${rowValues})`);
-    }
+    const csvContent = headers + '\n' + rows;
+
+    // 4. Register the CSV text as a virtual file in DuckDB's memory
+    const virtualFileName = `${tableName}_temp_insert.csv`;
+    await db.registerFileText(virtualFileName, csvContent);
+
+    // 5. Let DuckDB's native, compiled CSV engine read and create the table instantly
+    // This is 100% native and requires ZERO external extensions!
+    await conn.query(`CREATE TABLE "${tableName}" AS SELECT * FROM read_csv_auto('${virtualFileName}')`);
+
+    // 6. Clean up the virtual file to free browser RAM
+    await db.registerFileText(virtualFileName, ''); 
+
+    const duration = (performance.now() - startTime).toFixed(1);
+    console.log(`[Database] Native ingestion complete. Created ${tableName} in ${duration}ms.`);
 }
 
 /**
