@@ -61,6 +61,7 @@ export function initMenus() {
         'menu-pivot': 'open-pivot',
         'menu-pareto': 'trigger-auto-pareto',
         'menu-narrator': 'trigger-narrator',
+        'menu-convert-banner': 'trigger-banner-convert',
         'menu-quality': 'open-quality',
         'menu-privacy': 'open-privacy'
     };
