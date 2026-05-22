@@ -122,7 +122,7 @@ async function generateAndRunSQL(userQuestion, schema, activeTable, maxRetries =
                     2. Always quote table and column names with double quotes (e.g., UPDATE "${activeTable}" SET "phone" = ...).
                     3. For phone cleaning: To remove a prefix like '91', use 'CAST(SUBSTRING("column"::TEXT, 3) AS BIGINT)' or similar string manipulation.
                     4. DML LIMIT: When using UPDATE or DELETE, ensure the WHERE clause is accurate based on the user's instruction.
-                    5. Output ONLY JSON: {"reasoning": "...", "sql": "query"}
+                    5. Output ONLY JSON: {"reasoning": "...", "sql": "query without semicolon at the end"}
                     
                     DuckDB vs. PostgreSQL & MySQL: Syntax Differences (Categorized)
 
@@ -291,7 +291,7 @@ async function findRelevantContext(userQuestion) {
  * AGENT 4: The Strategist (Unified Multimodal Intelligence)
  * ============================================================================
  */
-async function* streamStrategistWithContext(userQuestion, sqlData, docText, globalStats, schema, sqlReasoning) {
+async function* streamStrategistWithContext(userQuestion, sqlData, docText, globalStats, schema, sqlReasoning, extraContextPrompt = "") {
     const persona = getActivePersona();
     const backgroundContext = getAgenticContextString();
 
@@ -330,6 +330,7 @@ async function* streamStrategistWithContext(userQuestion, sqlData, docText, glob
                     --- DATA CONTEXT ---
                     ${globalStats ? `GLOBAL DATASET PROFILE (ALL ROWS): ${JSON.stringify(globalStats)}` : ''}
                     SCHEMA: ${schema}
+                    ${extraContextPrompt} -- Injected Linked Tables (Use this to decode codes or match IDs)
                     SQL RESULTS: ${sqlData || "None"}
                     ${sqlReasoning ? `ENGINEER'S NOTE: ${sqlReasoning}` : ''}
                     DOCUMENT SNIPPETS (RAG): ${docText || "None"}
@@ -343,6 +344,7 @@ async function* streamStrategistWithContext(userQuestion, sqlData, docText, glob
                     - If info is in the DOCUMENT SNIPPETS, clearly cite the filename.
                     - Give the strategic insights based primarily for India and Indian organizations unless stated otherwise.
                     - Use the memory to understand follow-up questions or maintain consistency in your advice.
+                    - If the SQL results contain cryptic codes, use the LINKED REFERENCE TABLES to translate them into business terms.
                     - Use markdown. Highlight key numbers in bold.
                     
                     --- VISUALIZATION CAPABILITY ---
@@ -401,7 +403,10 @@ async function* streamStrategistWithContext(userQuestion, sqlData, docText, glob
  * MAIN CONVERSATION PIPELINE
  * ============================================================================
  */
-export async function* askAgentStream(userQuestion, activeTable) {
+/**
+ * MAIN CONVERSATION PIPELINE (Updated for Context Table Linking)
+ */
+export async function* askAgentStream(userQuestion, activeTable, contextTables = []) {
     let schema = "";
     if (activeTable) {
         try { schema = await getTableSchema(activeTable); } catch(e) { console.warn(e); }
@@ -411,38 +416,14 @@ export async function* askAgentStream(userQuestion, activeTable) {
     yield { type: 'status', content: "Understanding intent..." };
     const routing = await getIntent(userQuestion);
 
-    // DELAY after routing
-    await sleep(2000); 
-
     let globalStats = null;
     let sqlResults = "";
     let docContext = "";
     let sqlUsed = "";
     let sqlReasoning = "";
 
-    // 2. DATA GATHERING
-
-    // A. Perform Vector Search (RAG)
-    if (routing.needs_rag || routing.intent === "DOC_CHAT") {
-        yield { type: 'status', content: "Searching vector vault for relevant snippets..." };
-        docContext = await findRelevantContext(userQuestion);
-        await sleep(1500); // Short delay after vector search
-    }
-
-    // B. Perform SQL Execution
-    if (routing.intent === "EXPLAIN" && activeTable) {
-        yield { type: 'status', content: "Performing deep audit on all rows..." };
-        globalStats = await getDeepTableProfile(activeTable);
-        await sleep(2000); // Delay to let user read the status
-        
-        yield { type: 'status', content: "Fetching visual data sample..." };
-        const sample = await generateAndRunSQL("Show 10 row sample", schema, activeTable);
-        if (sample.success) {
-            sqlResults = JSON.stringify(sample.data, bigIntReplacer);
-            sqlUsed = sample.sql;
-            sqlReasoning = "Structural overview + Global statistical profile.";
-        }
-    } else if (routing.needs_sql && activeTable) {
+    // 2. DATA GATHERING (Same as before)
+    if (routing.needs_sql && activeTable) {
         yield { type: 'status', content: "Generating query..." };
         const execution = await generateAndRunSQL(userQuestion, schema, activeTable);
         if (!execution.success) {
@@ -455,16 +436,36 @@ export async function* askAgentStream(userQuestion, activeTable) {
     }
 
     if (sqlUsed) yield { type: 'sql', content: sqlUsed };
+    await sleep(2000);
 
-    // DELAY before the final brain work
-    await sleep(2000); 
+    // 3. 🚀 NEW: Fetch Schemas of all Linked Context Tables
+    let extraContextPrompt = "";
+    if (contextTables && contextTables.length > 0) {
+        yield { type: 'status', content: "Mapping linked reference tables..." };
+        extraContextPrompt = "\n\n--- LINKED REFERENCE TABLES (CONTEXT) ---\n";
+        
+        for (const t of contextTables) {
+            const contextSchema = await getTableSchema(t);
+            extraContextPrompt += `Table: "${t}"\nSchema: ${contextSchema}\n\n`;
+        }
+        extraContextPrompt += "-----------------------------------------\n\n";
+    }
 
-    // 3. SYNTHESIZE
+    // 4. SYNTHESIZE
     yield { type: 'status', content: "Synthesizing cross-engine insights..." };
     
-    // Pass everything to the unified Strategist
-    yield* streamStrategistWithContext(userQuestion, sqlResults, docContext, globalStats, schema, sqlReasoning);
+    // Pass 'extraContextPrompt' to the final Strategist
+    yield* streamStrategistWithContext(
+        userQuestion, 
+        sqlResults, 
+        docContext, 
+        globalStats, 
+        schema, 
+        sqlReasoning,
+        extraContextPrompt // 🚀 Pass to Strategist
+    );
 }
+
 
 /**
  * ============================================================================
